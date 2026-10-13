@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DDC Document Manager — Secure Login</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>body{margin:0;font-family:Arial,sans-serif;background:#eef3f9;color:#18324d}header{background:#142d4e;color:#fff;padding:14px 23px;display:flex;align-items:center;gap:20px;justify-content:space-between}h1{font-size:19px;margin:0}.wrap{max-width:1280px;margin:25px auto;padding:0 16px}.card{background:#fff;border:1px solid #d5e0ee;border-radius:12px;padding:22px;margin-bottom:16px}#ddcFrame{border:1px solid #cfd9e6;width:100%;height:calc(100vh - 125px);min-height:690px;background:white;border-radius:10px}#msg{font-size:13px;color:#9e2626;margin:10px 0;white-space:pre-wrap}button{border:0;background:#195bad;border-radius:7px;color:#fff;padding:9px 14px;cursor:pointer}button:disabled{opacity:.6}.hidden{display:none!important}</style></head><body>
+<header><h1>DDC Document Manager — Multi-User Test</h1><button id="signout" class="hidden" onclick="signOut()">Sign out</button></header>
+<div class="wrap"><div id="loginCard" class="card"><h2>Sign in with your Google account</h2><p>Only accounts approved by DDC can access company documents. Never share the DDC owner password.</p><div id="googleButton"></div><div id="msg">Configuring login…</div></div><iframe id="ddcFrame" class="hidden" title="DDC document manager" referrerpolicy="no-referrer"></iframe></div>
+<script>
+'use strict';
+// REPLACE THESE TWO VALUES BEFORE HOSTING. OAuth Client ID is public, not a client secret.
+const CLIENT_ID='388613922771-kl3een39hpncqmrnn94if4o3psqg6p55.apps.googleusercontent.com';
+const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbytCpl75dze5lww9ZxQxi0KDTrPQMPXu39NIbWha5qAYlQulwh20e4JLnviBJFuZ63m/exec';
+let idToken='',ready=false,frame=document.getElementById('ddcFrame');
+let appOrigin='';
+try{appOrigin=new URL(APPS_SCRIPT_URL).origin;}catch(e){}
+const msg=s=>document.getElementById('msg').textContent=s;
+function signOut(){idToken='';ready=false;document.getElementById('signout').classList.add('hidden');document.getElementById('loginCard').classList.remove('hidden');frame.classList.add('hidden');frame.src='about:blank';msg('Signed out.');if(window.google?.accounts?.id)google.accounts.id.disableAutoSelect();}
+function handleCredential(res){
+ if(!res?.credential)return msg('No Google ID token returned.');
+ idToken=res.credential;ready=false;
+ document.getElementById('loginCard').classList.remove('hidden');
+ msg('Checking account permission…');
+ frame.classList.remove('hidden');
+ frame.src=APPS_SCRIPT_URL;
+}
+window.addEventListener('message',e=>{
+ // Apps Script HTML runs inside googleusercontent sandbox; only accept messages from the actual iframe.
+ if(!/^https:\/\/(?:[a-z0-9-]+\.)*googleusercontent\.com$/i.test(e.origin))return;
+ let data=e.data||{};
+ if(data.type==='DDC_IFRAME_READY'&&idToken){ready=true;e.source.postMessage({type:'DDC_ID_TOKEN',credential:idToken},e.origin);}
+ if(data.type==='DDC_LOGIN_SUCCESS'){
+  msg('');document.getElementById('loginCard').classList.add('hidden');document.getElementById('signout').classList.remove('hidden');
+ }
+ if(data.type==='DDC_LOGIN_ERROR'){frame.classList.add('hidden');msg(data.message||'Authorization failed.');}
+ if(data.type==='DDC_REQUEST_SIGN_OUT')signOut();
+});
+function init(){
+ if(CLIENT_ID.startsWith('REPLACE_')||APPS_SCRIPT_URL.includes('REPLACE_'))return msg('Configuration missing: set CLIENT_ID and APPS_SCRIPT_URL in login.html.');
+ if(!window.google?.accounts?.id)return setTimeout(init,300);
+ google.accounts.id.initialize({client_id:CLIENT_ID,callback:handleCredential,auto_select:false});
+ google.accounts.id.renderButton(document.getElementById('googleButton'),{theme:'outline',size:'large',text:'signin_with',width:280});
+ msg('');
+}
+window.addEventListener('load',init);
+</script></body></html>
